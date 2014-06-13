@@ -18,6 +18,9 @@ The file is sourced from their WebSocket-style endpoint at /socket.io/1/xhr-poll
 
 Once you have found the correct source data, click it, then right click from the left-side bar to "Copy Response", then paste it into a text document.  You can also save it as a HAR file, which the library will attempt to parse.
 
+
+![screenshot of how to find source data in Chrome 36](https://raw.githubusercontent.com/isolinear/sto-data/docs/images/chrome.png "Chrome screenshot")
+
 Usage
 ======
 The default invocation:
