@@ -24,7 +24,7 @@ Once you have found the correct source data, click it, then right click from the
 Usage
 ======
 The default invocation:
-python sto_fc.py <path_to_json_or_har> <fleet_name> <path_for_csv>
+python sto_fc.py path_to_json_or_har fleet_name path_for_csv
 
 Example: python sto_fc.py /Users/foo/tmp/gateway_contribs.har COA /tmp/coa.csv"
 
