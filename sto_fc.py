@@ -24,11 +24,12 @@ class Fleet(object):
     def sort_by_last_login(self):
         self.accounts.sort(key=lambda account: account.last_logged_out, reverse=True)
         
-    def get_accounts_within_n_days(self, d):
+    def get_accounts_within_n_days(self, n):
         result = []
         self.sort_by_last_login()
+        n_days_ago = datetime.datetime.now(dateutil.tz.tzutc())-datetime.timedelta(days=n)
         for account in self.accounts:
-            if account.last_logged_out >= d:
+            if account.last_logged_out >= n_days_ago:
                 result.append(account)
         return result
     
@@ -179,11 +180,16 @@ def load_holdings_data_from_json(path_to_json, fleet_name):
         raise ValueError("Failed to locate fleet holdings array. The JSON format may have changed, or the JSON given is not the actual fleet holdings data")
         return []
 
-def load_holdings_from_json(path_to_json, fleet_name="Fleet"):
+def load_holdings_from_json(path_to_json, fleet_name="Fleet", specific_holding=None):
     fleet_holdings = load_holdings_data_from_json(path_to_json, fleet_name)
     fleet = Fleet(name=fleet_name)
     for holding in fleet_holdings:
-        fleet.load_from_holding_dict(holding)
+        if specific_holding:
+            # we're only interested in data out of one specific holding
+            if holding["shortname"].lower() == specific_holding.lower():
+                fleet.load_from_holding_dict(holding)
+        else:
+            fleet.load_from_holding_dict(holding)
     return fleet
 
 
@@ -215,8 +221,8 @@ def load_fleet_from_guild_data(path_to_json, fleet_name="Fleet"):
     fleet.load_from_members_array(fleet_members)
     return fleet
 
-def output_lfc(path_to_json, fleet_name, output_path):
-    fleet = load_holdings_from_json(path_to_json, fleet_name)
+def output_lfc(path_to_json, fleet_name, output_path, specific_holding=None):
+    fleet = load_holdings_from_json(path_to_json, fleet_name, specific_holding=specific_holding)
     fleet.sort()
     with open(output_path, 'wb') as csvfile:
         cwriter = csv.writer(csvfile)
