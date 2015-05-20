@@ -4,6 +4,16 @@ import json, collections, unicodecsv as csv, sys, dateutil.parser, datetime, cop
 
 # note the dependencies on dateutil.parser (v1.x series, because this is Python 2) and unicodecsv
 
+COA_RANK_SET = {
+    "Triumvir":6,
+    "Senior Consul":5,
+    "Consul":4,
+    "Senior Member":3,
+    "Member":2,
+    "Junior Member":1,
+    "Initiate":0
+}
+
 class Fleet(object):
     '''Represents a fleet.  Contains individual accounts, which contains characters.  Has convenience functions to operate over list of members'''
     def __init__(self, name):
@@ -74,6 +84,8 @@ class Fleet(object):
                 character = account.character_name_index[character_name]
                 #print "Found character %s" %(character_name)
             character.rank = rank
+            # if rank == "":
+            #     raise ValueError(character)
             character.last_logged_out = last_logged_out
             #print "Appending character %s%s %s" %(character.name, account.name, character.rank)
     
@@ -133,6 +145,40 @@ class Account(object):
     @property
     def rank(self):
         return self.characters[0].rank
+
+    def improperly_ranked_characters(self, rank_set=None):
+        result = []
+        if not rank_set:
+            rank_set = COA_RANK_SET
+        inv_rank_set = {v: k for k, v in rank_set.items()}
+
+        max_rank = None
+        max_rank_readable = None
+        has_discrepancy = False
+        # dumb 2n scan
+        for character in self.characters:
+            if not character.rank:
+                continue
+            numerical_rank = rank_set[character.rank]
+            if max_rank == None:
+                max_rank = numerical_rank
+                max_rank_readable = character.rank
+            elif max_rank != numerical_rank:
+                if not has_discrepancy:
+                    has_discrepancy = True
+                if numerical_rank  > max_rank:
+                    max_rank = numerical_rank
+                    max_rank_readable = character.rank
+        if has_discrepancy:
+            for character in self.characters:
+                if not character.rank:
+                    continue
+                numerical_rank = rank_set[character.rank]
+                if (numerical_rank != max_rank):
+                    result.append(character)
+            return {"characters":result, "needs_rank":max_rank, "needs_rank_readable":inv_rank_set[max_rank]}
+        else:
+            return False
         
 class GrandFleet(Fleet):
     '''Grand fleets are fleets across factions'''
@@ -246,7 +292,47 @@ def output_promotion_list(rank_contrib_paired_files, grand_fleet_name, output_pa
         cwriter = csv.writer(csvfile)
         for account in grand_fleet.accounts:
             cwriter.writerow([account.name, account.rank, account.fc])
-            
+
+def output_roster(roster_name_pairs, grand_fleet_name, output_path):
+    fleets = []
+    for pair in roster_name_pairs:
+        path_to_roster = pair[0]
+        fleet_name = pair[1]
+        fleet_members = load_fleet_members_from_guild_data(path_to_roster, fleet_name)
+        fleet = Fleet(fleet_name)
+        fleet.load_from_members_array(fleet_members)
+        fleets.append(fleet)
+    grand_fleet = GrandFleet(grand_fleet_name, fleets)
+    with open(output_path, 'wb') as csvfile:
+        cwriter = csv.writer(csvfile)
+        cwriter.writerow(["charname", "acctname", "rank"])
+        for account in grand_fleet.accounts:
+            for character in account.characters:
+                cwriter.writerow(
+                        [character.name, account.name, character.rank])
+
+def output_discrepancy_list(rank_contrib_paired_files, grand_fleet_name, output_path):
+    '''rank_contrib pair files are a list of tuples, each tuple being (path_to_roster, path_to_contribs, fleet_name)'''
+    fleets = []
+    for fleet_files in rank_contrib_paired_files:
+        path_to_roster = fleet_files[0]
+        path_to_contribs = fleet_files[1]
+        fleet_name = fleet_files[2]
+        fleet = load_holdings_from_json(path_to_contribs, fleet_name)
+        fleet_members = load_fleet_members_from_guild_data(path_to_roster, fleet_name)
+        fleet.load_from_members_array(fleet_members)
+        fleets.append(fleet)
+    grand_fleet = GrandFleet(grand_fleet_name, fleets)
+    #grand_fleet.sort()
+    with open(output_path, 'wb') as csvfile:
+        cwriter = csv.writer(csvfile)
+        cwriter.writerow(["charname", "acctname", "is_rank", "needs_rank", "cross_fleet_lfc"])
+        for account in grand_fleet.accounts:
+            discrepancies = account.improperly_ranked_characters()
+            if discrepancies:
+                for character in discrepancies["characters"]:
+                    cwriter.writerow([character.name, account.name, character.rank, discrepancies["needs_rank_readable"], account.fc])
+
 def output_lfc_diff_using_csv(path_to_csv_earlier, path_to_csv_later, output_path):
     fleet_time_a = {}
     fleet_time_b = {}
